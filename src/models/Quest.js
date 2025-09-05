@@ -5,30 +5,31 @@ const questSchema = new mongoose.Schema(
     // Who owns/attempted this quest
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-    // High-level metadata
-    subject: { type: String, required: true }, // e.g. "algebra", "WWII"
+    subject: { type: String, required: true },
     type: {
       type: String,
       enum: ["micro-quiz", "multi-step", "coding-kata", "translation", "explanation"],
       required: true,
     },
-    difficulty: { type: Number, default: 1 }, // adaptive difficulty scale (1-10)
-    fingerprint: { type: String, required: true }, // hash of question (cheat detection)
+    difficulty: { type: Number, default: 1 },
+    fingerprint: { type: String, required: true },
 
     // AI-generated content
-    promptUsed: { type: String }, // stored for moderation/debug
+    promptUsed: { type: String },
     question: { type: String, required: true },
-    choices: { type: [String], default: [] }, // for MCQ
-    correctAnswer: { type: String, required: true }, // canonical correct answer
-    explanation: { type: String }, // AI-generated explanation
+    choices: { type: [String], default: [] },
+    correctAnswer: { type: String, required: true },
+    explanation: { type: String },
 
     // User’s interaction
     userAnswer: { type: String, default: null },
-    userExplanation: { type: String, default: null }, // their reasoning steps
+    userExplanation: { type: String, default: null },
     score: { type: Number, default: null }, // 0–100
     solved: { type: Boolean, default: false },
+    solvedAt: { type: Date },
 
     // Moderation / replay
+    cheatFlags: { type: [String], default: [] },
     flagged: { type: Boolean, default: false },
     reviewed: { type: Boolean, default: false },
   },
