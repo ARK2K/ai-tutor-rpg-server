@@ -1,3 +1,4 @@
+const axios = require("axios");
 const Quest = require("../models/Quest");
 const User = require("../models/User");
 const cheatDetection = require("../utils/cheatDetection");
@@ -18,7 +19,7 @@ function resetIfNewDay(user) {
   return user;
 }
 
-exports.requestQuest = async (req, res) => {
+const requestQuest = async (req, res) => {
   try {
     const { subject, difficulty = 1 } = req.body;
     const user = await User.findById(req.auth.userId);
@@ -49,26 +50,41 @@ exports.requestQuest = async (req, res) => {
     }
     await user.save();
 
-    // Placeholder (later use LLM proxy)
+    // 🔥 Call LLM proxy
+    const llmRes = await axios.post(
+      `${process.env.BACKEND_URL || "http://localhost:5000"}/api/llm/generate`,
+      { subject, difficulty },
+      {
+        headers: {
+          Authorization: req.headers.authorization, // forward Clerk JWT
+        },
+      }
+    );
+
+    const { data } = llmRes.data;
+
+    // Persist quest
     const quest = new Quest({
       userId: user._id,
       subject,
       difficulty,
-      question: `Placeholder question about ${subject}`,
-      correctAnswer: "42",
-      explanation: "Placeholder explanation",
-      fingerprint: `${subject}-${difficulty}`,
+      question: data.question,
+      choices: data.choices || [],
+      correctAnswer: data.correctAnswer,
+      explanation: data.explanation,
+      promptUsed: `Generated quest for ${subject} at difficulty ${difficulty}`,
+      fingerprint: `${subject}-${difficulty}-${Date.now()}`, // TODO: hash question text
     });
     await quest.save();
 
     res.json({ quest });
   } catch (err) {
-    console.error("❌ requestQuest error:", err);
+    console.error("❌ requestQuest error:", err.message);
     res.status(500).json({ error: "Quest generation failed" });
   }
 };
 
-exports.submitAnswer = async (req, res) => {
+const submitAnswer = async (req, res) => {
   try {
     const { questId, answer, explanation } = req.body;
     const user = await User.findById(req.auth.userId);
@@ -97,12 +113,12 @@ exports.submitAnswer = async (req, res) => {
 
     res.json({ correct, cheatFlags, explanation: quest.explanation });
   } catch (err) {
-    console.error("❌ submitAnswer error:", err);
+    console.error("❌ submitAnswer error:", err.message);
     res.status(500).json({ error: "Submit failed" });
   }
 };
 
-exports.refillViaAd = async (req, res) => {
+const refillViaAd = async (req, res) => {
   try {
     const user = await User.findById(req.auth.userId);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
@@ -123,12 +139,12 @@ exports.refillViaAd = async (req, res) => {
       remaining: DAILY_AD_LIMIT - user.dailyAdRefillsUsed,
     });
   } catch (err) {
-    console.error("❌ refillViaAd error:", err);
+    console.error("❌ refillViaAd error:", err.message);
     res.status(500).json({ error: "Ad refill failed" });
   }
 };
 
-exports.subscriptionCheck = async (req, res) => {
+const subscriptionCheck = async (req, res) => {
   try {
     const user = await User.findById(req.auth.userId);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
@@ -136,7 +152,9 @@ exports.subscriptionCheck = async (req, res) => {
     const isSubscribed = user.subscriptions?.some((s) => s.active);
     res.json({ isSubscribed });
   } catch (err) {
-    console.error("❌ subscriptionCheck error:", err);
+    console.error("❌ subscriptionCheck error:", err.message);
     res.status(500).json({ error: "Subscription check failed" });
   }
 };
+
+module.exports = { requestQuest, submitAnswer, refillViaAd, subscriptionCheck };
